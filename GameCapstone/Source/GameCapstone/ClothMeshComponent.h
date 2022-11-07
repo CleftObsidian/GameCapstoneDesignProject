@@ -67,12 +67,24 @@ public:
 	// Mesh Properties
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 	UStaticMeshComponent* m_sm;
-
 	UPROPERTY(EditAnywhere, Category = "Cloth Simulation")
 	bool bShowStaticMesh;
 
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
 	void StaticToProcedural();
+
+	// Get buffer
+	FPositionVertexBuffer* GetVertexBuffer();
+	FStaticMeshVertexBuffer* GetMeshVertexBuffer();
+	FColorVertexBuffer* GetColorVertexBuffer();
+	FRawStaticIndexBuffer* GetIndexBuffer();
+
+	unsigned int GetVertexNum();
+
+	unsigned int GetVBuffLen();
+	unsigned int GetNBuffLen();
+	unsigned int GetTBuffLen();
+	unsigned int GetIBuffLen();
 
 	UClothMeshComponent(const FObjectInitializer& ObjectInitializer);
 
@@ -95,6 +107,7 @@ private:
 
 
 };
+
 struct FClothConstraint
 {
 	FClothConstraint(FClothParticle& Pt_0, FClothParticle& Pt_1, UClothMeshComponent* cloth)

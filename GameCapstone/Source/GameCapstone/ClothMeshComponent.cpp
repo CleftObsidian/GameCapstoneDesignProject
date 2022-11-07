@@ -117,3 +117,46 @@ void UClothMeshComponent::StaticToProcedural()
 	m_sm->SetVisibility(bShowStaticMesh);
 	clothStateExists = true;
 }
+
+FPositionVertexBuffer* UClothMeshComponent::GetVertexBuffer()
+{
+	return m_smData.vb;
+}
+
+FStaticMeshVertexBuffer* UClothMeshComponent::GetMeshVertexBuffer()
+{
+	return m_smData.smvb;
+}
+
+FColorVertexBuffer* UClothMeshComponent::GetColorVertexBuffer()
+{
+	return m_smData.cvb;
+}
+
+FRawStaticIndexBuffer* UClothMeshComponent::GetIndexBuffer()
+{
+	return m_smData.ib;
+}
+
+unsigned int UClothMeshComponent::GetVertexNum()
+{
+	return (unsigned int)m_smData.vert_count;
+}
+
+unsigned int UClothMeshComponent::GetVBuffLen()
+{
+	return (unsigned int)m_smData.vert_count * 3;
+}
+
+unsigned int UClothMeshComponent::GetNBuffLen()
+{
+	return (unsigned int)m_smData.vert_count * 3;
+}
+unsigned int UClothMeshComponent::GetTBuffLen()
+{
+	return (unsigned int)m_smData.vert_count * 2;
+}
+unsigned int UClothMeshComponent::GetIBuffLen()
+{
+	return (unsigned int)m_smData.ind_count;
+}

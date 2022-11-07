@@ -14,7 +14,10 @@ public class GameCapstone : ModuleRules
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
-		
+		PublicIncludePaths.Add("ThirdParty");
+		PublicIncludePaths.Add("ThirdParty/Eigen");
+		PublicIncludePaths.Add("ThirdParty/Eigen/src");
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
