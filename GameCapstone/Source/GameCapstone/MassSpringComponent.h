@@ -9,12 +9,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "ClothMeshComponent.h"
-
 #include "CoreMinimal.h"
 #include "Components/SceneComponent.h"
 #include "MassSpringComponent.generated.h"
-
 
 // Mass-spring Ststem struct
 struct mass_spring_system
@@ -259,13 +256,10 @@ public:
 
 	// --- MassSpring - Properties - Cloth Simulation ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
-		bool bSimulate;
+		bool bDoSimulate;
 
 	mass_spring_system* system;
 	MassSpringSolver* m_solver;
-
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
-	UClothMeshComponent* m_Mesh;
 
 	// solve iterations
 	void solve(unsigned int n);

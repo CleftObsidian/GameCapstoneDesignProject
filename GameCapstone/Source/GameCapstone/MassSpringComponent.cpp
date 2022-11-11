@@ -115,7 +115,7 @@ void MassSpringSolver::solve(unsigned int n) {
 
 	// perform steps
 	for (unsigned int i = 0; i < n; i++) {
-		localStep();
+		localStep(); // 해당 함수 진입이 안되서 자꾸 crack 나는 듯?
 		globalStep();
 	}
 }
@@ -389,9 +389,6 @@ UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectIniti
 {
 	PrimaryComponentTick.bCanEverTick = true; 
 	bTickInEditor = true;
-
-	m_Mesh = NewObject<UClothMeshComponent>();
-	//m_Mesh = _Mesh;
 }
 
 // Called when the game starts
@@ -407,34 +404,5 @@ void UMassSpringComponent::BeginPlay()
 void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	/*if (bSimulate)
-	{
-		m_Mesh->StaticToProcedural();
-
-		static const int n = m_Mesh->GetVertexNum(); // must be odd, n * n = n_vertices | 61
-		static const float w = 2.0f; // width | 2.0f
-		static const float h = 0.008f; // time step, smaller for better results | 0.008f = 0.016f/2
-		static const float r = w / (n - 1) * 1.05f; // spring rest legnth
-		static const float k = 1.0f; // spring stiffness | 1.0f;
-		static const float m = 0.25f / (n * n); // point mass | 0.25f
-		static const float a = 0.993f; // damping, close to 1.0 | 0.993f
-		static const float g = 9.8f * m; // gravitational force | 9.8f
-
-		MassSpringBuilder massSpringBuilder;
-		massSpringBuilder.uniformGrid(
-			n,
-			h,
-			r,
-			k,
-			m,
-			a,
-			g
-		);
-
-		system = massSpringBuilder.getResult();
-		float* vbuff = (float*)&m_Mesh->GetVertexBuffer()->VertexPosition(0);
-		m_solver = new MassSpringSolver(system, vbuff);
-	}*/
 }
 

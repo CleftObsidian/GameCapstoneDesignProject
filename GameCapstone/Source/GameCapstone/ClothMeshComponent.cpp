@@ -43,6 +43,7 @@ void UClothMeshComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	UWorld* world = GetWorld();
 	for (int32 i = 0; i < m_smData.vert_count - 1; ++i)
 	{
+		DrawDebugSphere(world, Particles[i].Position, 2.5f, 3, FColor(0, 255, 0));
 		DrawDebugLine(world, Particles[i].Position, Particles[i + 1].Position, FColor(255, 0, 0));
 	}
 }
