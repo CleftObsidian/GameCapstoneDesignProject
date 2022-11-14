@@ -105,6 +105,8 @@ void UClothMeshComponent::StaticToProcedural()
 		Particles[i].PrevPosition = vertPtPos;
 		Particles[i].ID = i;
 		lod0->bHasColorVertexData == true ? Particles[i].Col = m_smData.cvb->VertexColor(i) : Particles[i].Col = FColor(255, 255, 255);
+
+
 	}
 
 	for (int32 i = 0; i < m_smData.ind_count; i++)
@@ -117,6 +119,35 @@ void UClothMeshComponent::StaticToProcedural()
 	bShowStaticMesh = false;
 	m_sm->SetVisibility(bShowStaticMesh);
 	clothStateExists = true;
+}
+
+TArray<FClothParticle> UClothMeshComponent::GetParticle()
+{
+	return Particles;
+}
+
+
+void UClothMeshComponent::SetParticle(Map& Current_Particles)
+{
+	// Mass Spring으로부터 Solve()된 Particle 정보(current_state)를 Get
+	// 이를 Cloth의 Particles Array에 저장 (Particle Position)
+	// Mesh에 Update
+	for (int32 pt = 0; pt < particleCount; pt++)
+	{
+		FClothParticle& Particle = Particles[pt];
+		VectorXf vectorXf = Current_Particles;
+
+		FVector NewPosition;
+		int ParticleNum= 0; // Check용
+		for (int32 i = pt; i < vectorXf.size() - 2; i+=3)
+		{
+			NewPosition = FVector(vectorXf[i], vectorXf[i + 1], vectorXf[i + 2]);
+			Particle.PrevPosition = Particle.Position;
+			Particle.Position = NewPosition;
+			ParticleNum += 1;
+		}
+		//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, 생성 ParticleNum은 %d"),particleCount, ParticleNum));
+	}
 }
 
 FPositionVertexBuffer* UClothMeshComponent::GetVertexBuffer()
@@ -160,4 +191,43 @@ unsigned int UClothMeshComponent::GetTBuffLen()
 unsigned int UClothMeshComponent::GetIBuffLen()
 {
 	return (unsigned int)m_smData.ind_count;
+}
+
+void UClothMeshComponent::TickUpdateCloth()
+{
+	// Mesh를 현재 지정된 Particles의 position에 따라 Update
+
+	check(particleCount == m_smData.vert_count);
+	//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Mesh Update 시작")));
+
+	// Update PM Position
+	TArray<FVector> UpdtPos; UpdtPos.AddDefaulted(particleCount);
+	TArray<FColor> UpdtCol; UpdtCol.AddDefaulted(particleCount);
+	TArray<FProcMeshTangent> UpdtTang; UpdtTang.AddDefaulted(particleCount);
+	TArray<FVector> UpdtNorm; UpdtNorm.AddDefaulted(particleCount);
+
+	// Update Tangents from cur Particles -- 일단 Pass
+	//UpdateTangents(UpdtTang, UpdtNorm);
+
+	// Copy Normals for Pressure Use
+	Normals = UpdtNorm;
+
+	// Update From Particle Attribs. 
+	if (!m_smData.has_col)
+	{
+		for (int32 i = 0; i < particleCount; ++i)
+		{
+			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
+		}
+		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, m_smData.Col, UpdtTang); // No Colour, Use SM Colour. 
+	}
+	else if (m_smData.has_col)
+	{
+		for (int32 i = 0; i < particleCount; ++i)
+		{
+			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
+			UpdtCol[i] = Particles[i].Col;
+		}
+		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, UpdtCol, UpdtTang); // Use Particle Colour --> Vertex Colour. 
+	}
 }

@@ -20,7 +20,7 @@ AMassSpringTestActor::AMassSpringTestActor()
 
 void AMassSpringTestActor::InitCloth()
 {
-	Cloth->StaticToProcedural();
+	//Cloth->StaticToProcedural();
 
 	static const int n = Cloth->GetVertexNum() + 1; // must be odd, n * n = n_vertices | 61
 	static const float w = 2.0f; // width | 2.0f
@@ -36,7 +36,7 @@ void AMassSpringTestActor::InitCloth()
 	// meshBuilder.uniformGrid(w, n);
 	// g_clothMesh = meshBuilder.getResult();
 	
-	//-- MODIFY: 절차적 Mesh가, 아래 GetResult()에 의해 return --//
+	//-- MODIFY --//
 	//-- TODO? --//
 	MassSpringBuilder* massSpringBuilder = new MassSpringBuilder();
 	massSpringBuilder->uniformGrid(
@@ -51,11 +51,25 @@ void AMassSpringTestActor::InitCloth()
 	MassSpring->system = massSpringBuilder->getResult();
 
 	// initialize mass spring solver
-	float* vbuff = (float*)&Cloth->GetVertexBuffer()->VertexPosition(0);
+	// Cloth의 Position을 받아와서 PariclePos에 저장. 이를 vbuff에 할당
+	// 
+	//float* vbuff = (float*)&Cloth->GetVertexBuffer()->VertexPosition(0);
+
+	float ParticlePos[72];
+	for (int32 i = 0; i < Cloth->GetParticle().Num() - 2; i+=3)
+	{
+		ParticlePos[i] = Cloth->GetParticle()[i].Position.X;
+		ParticlePos[i + 1] = Cloth->GetParticle()[i + 1].Position.Y;
+		ParticlePos[i + 2] = Cloth->GetParticle()[i + 2].Position.Z;
+	}
+	float* vbuff = (float*) &ParticlePos;
+
 	//-- TODO? --//
 
 	// initialize mass spring solver
 	MassSpring->m_solver = new MassSpringSolver(MassSpring->system, vbuff);
+	MassSpring->m_solver->current_state = Map(ParticlePos, MassSpring->system->n_points * 3);
+	MassSpring->m_solver->prev_state = MassSpring->m_solver->current_state;
 
 	// deformation constraint parameters
 	const float tauc = 0.12f; // critical spring deformation | 0.12f
@@ -90,6 +104,11 @@ void AMassSpringTestActor::InitCloth()
 
 void AMassSpringTestActor::AnimateCloth(int value)
 {
+	if (value == 0)
+	{
+		MassSpring->m_solver->current_state = MassSpring->m_solver->prev_state;
+		value++;
+	}
 	// solve two time-steps
 	MassSpring->m_solver->solve(m_iter);
 	MassSpring->m_solver->solve(m_iter); 
@@ -99,11 +118,11 @@ void AMassSpringTestActor::AnimateCloth(int value)
 	visitor.satisfy(*m_cgRootNode);
 
 	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("vertex position(%d, %d, %d)"), 
-		Cloth->GetVertexBuffer()->VertexPosition(0).X, 
-		Cloth->GetVertexBuffer()->VertexPosition(0).Y, 
-		Cloth->GetVertexBuffer()->VertexPosition(0).Z));
+		Cloth->Particles[0].Position.X, 
+		Cloth->Particles[0].Position.Y,
+		Cloth->Particles[0].Position.Z));
 
-	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
+	// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
 
 	//-- TODO: Light에 대한 Update --//
 	// update normals
@@ -129,13 +148,17 @@ void AMassSpringTestActor::Tick(float DeltaTime)
 
 	if (MassSpring->bDoSimulate)
 	{
+
 		//At += Dt;
 		//while (At > St)
 		{
 			//InitCloth();
-			AnimateCloth(0);
+			AnimateCloth(num);
+			Cloth->SetParticle(MassSpring->m_solver->current_state);
+			num++;
 			//At -= St;
 		}
+		Cloth->TickUpdateCloth();
 	}
 	else
 	{

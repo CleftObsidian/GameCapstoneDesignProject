@@ -21,8 +21,11 @@ mass_spring_system::mass_spring_system(
 
 // S O L V E R //////////////////////////////////////////////////////////////////////////////////////
 MassSpringSolver::MassSpringSolver(mass_spring_system* system, float* vbuff)
-	: system(system), current_state(vbuff, system->n_points * 3),
-	prev_state(current_state), spring_directions(system->n_springs * 3) {
+	: system(system), 
+	current_state(vbuff, system->n_points * 3),
+	prev_state(current_state), 
+	spring_directions(system->n_springs * 3)
+{
 
 	float h2 = system->time_step * system->time_step; // shorthand
 
@@ -84,7 +87,13 @@ void MassSpringSolver::globalStep() {
 		+ h2 * system->fext;
 
 	// solve system and update state
-	current_state = system_matrix.solve(b);
+	//VectorXf temp = system_matrix.solve(b);
+	SparseMatrix m1;
+	m1.resize(3 * system->n_points, 3 * system->n_points);
+	m1.reserve(b);
+	//current_state = m1;
+	current_state = system_matrix.solve(m1); // Error!
+	//current_state = system_matrix.solve(b); // Origin code
 }
 
 void MassSpringSolver::localStep() {
@@ -108,14 +117,14 @@ void MassSpringSolver::solve(unsigned int n) {
 	float a = system->damping_factor; // shorthand
 
 	// update inertial term
-	inertial_term = M * ((a + 1) * (current_state)-a * prev_state);
+	inertial_term = M * ((a + 1) * (current_state)- a * prev_state);
 
 	// save current state in previous state
 	prev_state = current_state;
 
 	// perform steps
 	for (unsigned int i = 0; i < n; i++) {
-		localStep(); // 해당 함수 진입이 안되서 자꾸 crack 나는 듯?
+		localStep();
 		globalStep();
 	}
 }

@@ -67,9 +67,9 @@ private:
 	SparseMatrix J;
 
 	// state
-	Map current_state; // q(n), current state
-	VectorXf prev_state; // q(n - 1), previous state
-	VectorXf spring_directions; // d, spring directions
+	// Map current_state; // q(n), current state -- Public
+	//VectorXf prev_state; // q(n - 1), previous state -- Public
+	VectorXf spring_directions; // d, spring directions 
 	VectorXf inertial_term; // M * y, y = (a + 1) * q(n) - a * q(n - 1)
 
 	// steps
@@ -79,6 +79,8 @@ private:
 public:
 	MassSpringSolver(mass_spring_system* system, float* vbuff);
 
+	Map current_state; // q(n), current state
+	VectorXf prev_state; // q(n - 1), previous state
 	// solve iterations
 	void solve(unsigned int n);
 	void timedSolve(unsigned int ms);
@@ -256,7 +258,7 @@ public:
 
 	// --- MassSpring - Properties - Cloth Simulation ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
-		bool bDoSimulate;
+		bool bDoSimulate = true;
 
 	mass_spring_system* system;
 	MassSpringSolver* m_solver;

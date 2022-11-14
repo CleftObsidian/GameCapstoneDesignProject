@@ -1,6 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
+#include "ThirdParty\Eigen\Dense"
+#include "ThirdParty\Eigen\Sparse"
+#include "ThirdParty\Eigen\src\SparseCore\SparseMatrix.h"
+#include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 #include "CoreMinimal.h"
 #include "ProceduralMeshComponent.h"
@@ -39,7 +45,24 @@ class GAMECAPSTONE_API UClothMeshComponent : public UProceduralMeshComponent
 {
 	GENERATED_BODY()
 
+private:
+	typedef Eigen::VectorXf VectorXf;
+	typedef Eigen::Map<Eigen::VectorXf> Map;
+
+	// --- Cloth Data ---
+	// TArray<FClothParticle> Particles; // Public
+	TArray<FClothConstraint> Constraints;
+	TArray<FVector> Normals;
+	TArray<FClothParticle*> VolSamplePts;
+	float restVolume, curVolume, deltaVolume;
+	int32 particleCount;
+
+	// --- State Flags --- 
+	bool clothStateExists, world_collided;
+
 public:
+	TArray<FClothParticle> Particles;
+
 	struct
 	{
 		// SM Deserialized
@@ -86,25 +109,19 @@ public:
 	unsigned int GetTBuffLen();
 	unsigned int GetIBuffLen();
 
+	TArray<FClothParticle> GetParticle();
+	void SetParticle(Map& Current_Particles);
+
 	UClothMeshComponent(const FObjectInitializer& ObjectInitializer);
 
 	void OnRegister() override;
 
 	void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	
+	// --- Cloth Solver Methods ---
+	void TickUpdateCloth();
 
-private:
-
-	// --- Cloth Data ---
-	TArray<FClothParticle> Particles;
-	TArray<FClothConstraint> Constraints;
-	TArray<FVector> Normals;
-	TArray<FClothParticle*> VolSamplePts;
-	float restVolume, curVolume, deltaVolume;
-	int32 particleCount;
-
-	// --- State Flags --- 
-	bool clothStateExists, world_collided;
-
+	//Map Current_Particles;
 
 };
 

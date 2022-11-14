@@ -12,7 +12,10 @@ UCLASS()
 class GAMECAPSTONE_API AMassSpringTestActor : public AActor
 {
 	GENERATED_BODY()
-	
+private:
+	typedef Eigen::VectorXf VectorXf;
+	typedef Eigen::Map<Eigen::VectorXf> Map;
+
 public:
 	// Sets default values for this actor's properties
 	AMassSpringTestActor();
@@ -43,6 +46,8 @@ public:
 	static const int m_animation_timer = (int)((1.0f / m_fps) * 1000 - m_frame_time);
 
 	float Dt, At, St; // Delta, Accumulated, Substep Time
+
+	unsigned int num = 0; // √ ±‚»≠
 
 	// Constraint Graph
 	CgRootNode* m_cgRootNode;
