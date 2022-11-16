@@ -88,12 +88,12 @@ void MassSpringSolver::globalStep() {
 
 	// solve system and update state
 	//VectorXf temp = system_matrix.solve(b);
-	SparseMatrix m1;
-	m1.resize(3 * system->n_points, 3 * system->n_points);
-	m1.reserve(b);
+	// SparseMatrix m1;
+	// m1.resize(3 * system->n_points, 3 * system->n_points);
+	// m1.reserve(b);
 	//current_state = m1;
-	current_state = system_matrix.solve(m1); // Error!
-	//current_state = system_matrix.solve(b); // Origin code
+	//current_state = system_matrix.solve(m1); // Error!
+	current_state = system_matrix.solve(b); // Origin code
 }
 
 void MassSpringSolver::localStep() {

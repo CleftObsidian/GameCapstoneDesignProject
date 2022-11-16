@@ -22,7 +22,8 @@ void AMassSpringTestActor::InitCloth()
 {
 	//Cloth->StaticToProcedural();
 
-	static const int n = Cloth->GetVertexNum() + 1; // must be odd, n * n = n_vertices | 61
+	//static const int n = Cloth->GetVertexNum() + 1; // must be odd, n * n = n_vertices | 61
+	static const int n = 7; // must be odd, n * n = n_vertices | 61
 	static const float w = 2.0f; // width | 2.0f
 	static const float h = 0.008f; // time step, smaller for better results | 0.008f = 0.016f/2
 	static const float r = w / (n - 1) * 1.05f; // spring rest legnth
@@ -55,12 +56,13 @@ void AMassSpringTestActor::InitCloth()
 	// 
 	//float* vbuff = (float*)&Cloth->GetVertexBuffer()->VertexPosition(0);
 
-	float ParticlePos[72];
-	for (int32 i = 0; i < Cloth->GetParticle().Num() - 2; i+=3)
+	float ParticlePos[147];
+	for (int32 i = 0,  j = 0; j < Cloth->GetParticle().Num(); i += 3)
 	{
-		ParticlePos[i] = Cloth->GetParticle()[i].Position.X;
-		ParticlePos[i + 1] = Cloth->GetParticle()[i + 1].Position.Y;
-		ParticlePos[i + 2] = Cloth->GetParticle()[i + 2].Position.Z;
+		ParticlePos[i] = Cloth->GetParticle()[j].Position.X;
+		ParticlePos[i + 1] = Cloth->GetParticle()[j].Position.Y;
+		ParticlePos[i + 2] = Cloth->GetParticle()[j].Position.Z;
+		j++;
 	}
 	float* vbuff = (float*) &ParticlePos;
 
@@ -90,6 +92,10 @@ void AMassSpringTestActor::InitCloth()
 	deformationNode->addSprings(massSpringBuilder->getShearIndex());
 	deformationNode->addSprings(massSpringBuilder->getStructIndex());
 
+	// fix top corners
+	CgPointFixNode* cornerFixer = new CgPointFixNode(MassSpring->system, vbuff);
+	cornerFixer->fixPoint(0);
+	cornerFixer->fixPoint(n - 1);
 	//
 	// initialize user interaction
 	//
@@ -100,6 +106,9 @@ void AMassSpringTestActor::InitCloth()
 	// first layer
 	m_cgRootNode->addChild(deformationNode);
 	m_cgRootNode->addChild(sphereCollisionNode);
+
+	// second layer
+	deformationNode->addChild(cornerFixer);
 }
 
 void AMassSpringTestActor::AnimateCloth(int value)
@@ -109,6 +118,7 @@ void AMassSpringTestActor::AnimateCloth(int value)
 		MassSpring->m_solver->current_state = MassSpring->m_solver->prev_state;
 		value++;
 	}
+
 	// solve two time-steps
 	MassSpring->m_solver->solve(m_iter);
 	MassSpring->m_solver->solve(m_iter); 
