@@ -22,12 +22,11 @@ mass_spring_system::mass_spring_system(
 	fext(fext), damping_factor(damping_factor) {}
 
 // S O L V E R //////////////////////////////////////////////////////////////////////////////////////
-MassSpringSolver::MassSpringSolver(mass_spring_system* system, float* vbuff)
-	:current_state(vbuff, system->n_points * 3),
+MassSpringSolver::MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff)
+	:s_system(system), current_state(vbuff, system->n_points * 3),
 	prev_state(current_state), 
 	spring_directions(system->n_springs * 3)
 {
-	s_system = MakeShareable(system);
 
 	float h2 = system->time_step * system->time_step; // shorthand
 
@@ -88,13 +87,6 @@ void MassSpringSolver::globalStep() {
 		+ h2 * J * spring_directions
 		+ h2 * s_system.Get()->fext;
 
-	// solve system and update state
-	//VectorXf temp = system_matrix.solve(b);
-	// SparseMatrix m1;
-	// m1.resize(3 * system->n_points, 3 * system->n_points);
-	// m1.reserve(b);
-	//current_state = m1;
-	//current_state = system_matrix.solve(m1); // Error!
 	current_state = system_matrix.solve(b); // Origin code
 }
 
@@ -400,14 +392,15 @@ bool CgSatisfyVisitor::visit(CgPointNode& node) { node.satisfy(); return true; }
 bool CgSatisfyVisitor::visit(CgSpringNode& node) { node.satisfy(); return true; }
 void CgSatisfyVisitor::satisfy(CgNode& root) { root.accept(*this); }
 
-
 UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer) 
 	: Super(ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = true; 
 	bTickInEditor = true;
 
+	// SM Init
 	m_sm = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ClothStaticMesh"));
+
 	m_smData.vb = nullptr;
 	m_smData.cvb = nullptr;
 	m_smData.smvb = nullptr;
@@ -628,9 +621,9 @@ void UMassSpringComponent::InitCloth()
 	//-- TODO? --//
 
 	// initialize mass spring solver
-	m_solver = MakeShareable(new MassSpringSolver(m_system.Get(), vbuff));
-	//MassSpring->m_solver->current_state = Map(ParticlePos, MassSpring->system->n_points * 3);
-	m_solver->prev_state = m_solver->current_state;
+	m_solver = MakeShareable(new MassSpringSolver(m_system, vbuff));
+	m_solver->current_state = Map(ParticlePos, m_system->n_points * 3);
+	m_solver.Get()->prev_state = m_solver.Get()->current_state;
 
 	// deformation constraint parameters
 	const float tauc = 0.12f; // critical spring deformation | 0.12f
@@ -676,14 +669,14 @@ void UMassSpringComponent::InitCloth()
 void UMassSpringComponent::AnimateCloth(int value)
 {
 	// solve two time-steps
-	m_solver->solve(m_iter);
-	m_solver->solve(m_iter);
+	m_solver.Get()->solve(m_iter);
+	m_solver.Get()->solve(m_iter);
 
 	// fix points
 	CgSatisfyVisitor visitor;
 	visitor.satisfy(*m_cgRootNode);
 
-	// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
+	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
 
 	//-- TODO: Light¿¡ ´ëÇÑ Update --//
 	// update normals
@@ -710,8 +703,6 @@ void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 		AnimateCloth(0);
 		SetParticle(m_solver->current_state);
-		//At -= St;
-
 		TickUpdateCloth();
 	}
 

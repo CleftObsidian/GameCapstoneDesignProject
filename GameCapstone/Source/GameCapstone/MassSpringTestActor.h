@@ -18,8 +18,8 @@ private:
 public:
 	// Sets default values for this actor's properties
 	AMassSpringTestActor();
-	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Category = "MassSpring")
-		UMassSpringComponent* MassSpring;
+	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "MassSpring")
+		class UMassSpringComponent* MassSpring;
 
 
 protected:

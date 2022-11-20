@@ -60,9 +60,7 @@ private:
 	typedef std::vector<Triplet> TripletList;
 
 	// system
-	UPROPERTY(VisibleDefaultsOnly, Category = "Mass Spring")
 	TSharedPtr<mass_spring_system> s_system;
-
 	Cholesky system_matrix;
 
 	// M, L, J matrices
@@ -81,7 +79,7 @@ private:
 	void localStep();
 
 public:
-	MassSpringSolver(mass_spring_system* system, float* vbuff);
+	MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff);
 
 	Map current_state; // q(n), current state
 	VectorXf prev_state; // q(n - 1), previous state
@@ -271,7 +269,7 @@ struct FClothParticle
 };
 
 // Mass-Spring System
-UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
+UCLASS(hidecategories = (Object, Physics, Activation, Collision, Navigation, Transform, "Components|Activation"), editinlinenew, meta = (BlueprintSpawnableComponent), ClassGroup = Rendering)
 class GAMECAPSTONE_API UMassSpringComponent : public UProceduralMeshComponent
 {
 	GENERATED_BODY()
@@ -335,9 +333,8 @@ public:
 	// --- Cloth Solver Methods ---
 	void TickUpdateCloth();
 
-	// Sets default values for this component's properties
+	// Sets default values for this component's properties	
 	UMassSpringComponent(const FObjectInitializer& ObjectInitializer);
-	//UMassSpringComponent(const FObjectInitializer& ObjectInitializer, mass_spring_system* system, float* vbuff);
 
 	// --- UActorComponent Overrides ---
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -349,7 +346,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Simulation", meta = (ClampMin = "0.005", UIMin = "0.005", UIMax = "0.1"))
 		float SubstepTime;
 
-	static const int m_iter = 5; // iterations per time step | 10
+	static const int m_iter = 1; // iterations per time step | 10
 	float At = 0.0f, Dt, St;
 	bool IsInit = false; // √ ±‚»≠
 
