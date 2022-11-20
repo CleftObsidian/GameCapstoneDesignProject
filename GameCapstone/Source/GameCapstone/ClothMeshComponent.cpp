@@ -127,7 +127,7 @@ TArray<FClothParticle> UClothMeshComponent::GetParticle()
 }
 
 
-void UClothMeshComponent::SetParticle(Map& Current_Particles)
+void UClothMeshComponent::SetParticle(VectorXf& Current_Particles)
 {
 	// Mass Spring으로부터 Solve()된 Particle 정보(current_state)를 Get
 	// 이를 Cloth의 Particles Array에 저장 (Particle Position)
@@ -135,18 +135,22 @@ void UClothMeshComponent::SetParticle(Map& Current_Particles)
 	for (int32 pt = 0; pt < particleCount; pt++)
 	{
 		FClothParticle& Particle = Particles[pt];
-		VectorXf vectorXf = Current_Particles;
+		//VectorXf vectorXf = Current_Particles;
 
 		FVector NewPosition;
 		int ParticleNum= 0; // Check용
-		for (int32 i = pt; i < vectorXf.size() - 2; i+=3)
+		for (int32 i = pt; i < Current_Particles.size() - 2; i+=3)
 		{
-			NewPosition = FVector(vectorXf[i], vectorXf[i + 1], vectorXf[i + 2]);
+			NewPosition = FVector(
+				Current_Particles[i], 
+				Current_Particles[i + 1], 
+				Current_Particles[i + 2]);
+
 			Particle.PrevPosition = Particle.Position;
 			Particle.Position = NewPosition;
 			ParticleNum += 1;
 		}
-		//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, 생성 ParticleNum은 %d"),particleCount, ParticleNum));
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, 생성 ParticleNum은 %d"),particleCount, ParticleNum));
 	}
 }
 

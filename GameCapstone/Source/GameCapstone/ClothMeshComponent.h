@@ -110,7 +110,7 @@ public:
 	unsigned int GetIBuffLen();
 
 	TArray<FClothParticle> GetParticle();
-	void SetParticle(Map& Current_Particles);
+	void SetParticle(VectorXf& Current_Particles);
 
 	UClothMeshComponent(const FObjectInitializer& ObjectInitializer);
 

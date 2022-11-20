@@ -13,6 +13,8 @@ AMassSpringTestActor::AMassSpringTestActor()
 	MassSpring = CreateDefaultSubobject<UMassSpringComponent>(TEXT("MS"));
 	Cloth = CreateDefaultSubobject<UClothMeshComponent>(TEXT("ClothMesh"));
 
+	//solved_current_state = MassSpring->m_solver->GetCurrentState();
+
 	bStartSimulate = false;
 	SubstepTime = 0.02f;
 	At = 0.0f;
@@ -70,7 +72,7 @@ void AMassSpringTestActor::InitCloth()
 
 	// initialize mass spring solver
 	MassSpring->m_solver = new MassSpringSolver(MassSpring->system, vbuff);
-	MassSpring->m_solver->current_state = Map(ParticlePos, MassSpring->system->n_points * 3);
+	//MassSpring->m_solver->current_state = Map(ParticlePos, MassSpring->system->n_points * 3);
 	MassSpring->m_solver->prev_state = MassSpring->m_solver->current_state;
 
 	// deformation constraint parameters
@@ -123,6 +125,8 @@ void AMassSpringTestActor::AnimateCloth(int value)
 	MassSpring->m_solver->solve(m_iter);
 	MassSpring->m_solver->solve(m_iter); 
 
+	solved_current_state = MassSpring->m_solver->GetCurrentState();
+
 	// fix points
 	CgSatisfyVisitor visitor;
 	visitor.satisfy(*m_cgRootNode);
@@ -164,7 +168,7 @@ void AMassSpringTestActor::Tick(float DeltaTime)
 		{
 			//InitCloth();
 			AnimateCloth(num);
-			Cloth->SetParticle(MassSpring->m_solver->current_state);
+			Cloth->SetParticle(solved_current_state);
 			num++;
 			//At -= St;
 		}

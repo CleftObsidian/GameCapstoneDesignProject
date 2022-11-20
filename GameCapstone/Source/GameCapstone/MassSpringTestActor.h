@@ -39,9 +39,11 @@ public:
 	//static mass_spring_system* m_system;
 	//static UMassSpringComponent* m_solver;
 
+	VectorXf solved_current_state;
+
 	// Animation
 	static const int m_fps = 60; // frames per second  | 60
-	static const int m_iter = 5; // iterations per time step | 10
+	static const int m_iter = 2; // iterations per time step | 10
 	static const int m_frame_time = 15; // approximate time for frame calculations | 15
 	static const int m_animation_timer = (int)((1.0f / m_fps) * 1000 - m_frame_time);
 

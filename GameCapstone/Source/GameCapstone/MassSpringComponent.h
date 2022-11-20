@@ -45,6 +45,8 @@ struct mass_spring_system
 	);
 };
 
+typedef Eigen::Map<Eigen::VectorXf> Map;
+
 // Mass-Spring System Solver class
 class MassSpringSolver {
 private:
@@ -58,7 +60,9 @@ private:
 	typedef std::vector<Triplet> TripletList;
 
 	// system
+	UPROPERTY(VisibleDefaultsOnly, Category = "Mass Spring")
 	mass_spring_system* system;
+
 	Cholesky system_matrix;
 
 	// M, L, J matrices
@@ -84,6 +88,8 @@ public:
 	// solve iterations
 	void solve(unsigned int n);
 	void timedSolve(unsigned int ms);
+
+	Map& GetCurrentState();
 };
 
 

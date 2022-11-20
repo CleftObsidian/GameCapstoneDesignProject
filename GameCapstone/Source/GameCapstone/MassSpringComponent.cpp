@@ -133,6 +133,11 @@ void MassSpringSolver::timedSolve(unsigned int ms) {
 	// TODO
 }
 
+Map& MassSpringSolver::GetCurrentState()
+{
+	return current_state;
+}
+
 // B U I L D E R ////////////////////////////////////////////////////////////////////////////////////
 void MassSpringBuilder::uniformGrid(
 	unsigned int n,
