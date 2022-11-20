@@ -10,7 +10,7 @@
 #include <unordered_set>
 
 #include "CoreMinimal.h"
-#include "Components/SceneComponent.h"
+#include "ProceduralMeshComponent.h"
 #include "MassSpringComponent.generated.h"
 
 // Mass-spring Ststem struct
@@ -61,7 +61,7 @@ private:
 
 	// system
 	UPROPERTY(VisibleDefaultsOnly, Category = "Mass Spring")
-	mass_spring_system* system;
+	TSharedPtr<mass_spring_system> s_system;
 
 	Cholesky system_matrix;
 
@@ -248,13 +248,93 @@ public:
 	void satisfy(CgNode& root);
 };
 
+struct FClothParticle
+{
+	FClothParticle()
+		: Position(0, 0, 0)
+		, PrevPosition(0, 0, 0)
+		, Force(0, 0, 0)
+		, Col(255, 255, 255, 255)
+		, ID(-1)
+		, C_idx(-1)
+		, state(1)
+		, conCount(0)
+	{}
+	FVector Position;
+	FVector PrevPosition;
+	FVector Force;
+	FColor Col;
+
+	int32 ID;
+	uint32 C_idx;
+	int8 state, conCount;
+};
+
 // Mass-Spring System
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class GAMECAPSTONE_API UMassSpringComponent : public USceneComponent
+class GAMECAPSTONE_API UMassSpringComponent : public UProceduralMeshComponent
 {
 	GENERATED_BODY()
 
+private:
+	typedef Eigen::VectorXf VectorXf;
+	typedef Eigen::Map<Eigen::VectorXf> Map;
+
+	// --- Cloth Data ---
+	// TArray<FClothParticle> Particles; // Public
+	TArray<FVector> Normals;
+	TArray<FClothParticle*> VolSamplePts;
+	float restVolume, curVolume, deltaVolume;
+	int32 particleCount;
+
+	// --- State Flags --- 
+	bool clothStateExists, world_collided;
+
 public:
+	TArray<FClothParticle> Particles;
+	struct
+	{
+		// SM Deserialized
+		TArray<FVector>            Pos;
+		TArray<FColor>             Col;
+		TArray<FVector>            Normal;
+		TArray<FProcMeshTangent>   Tang;
+		TArray<FVector2D>          UV;
+		TArray<int32>              Ind;
+		TArray<FIntVector>         Tris;
+
+		// Vert Shared Tris
+		TArray<int32>* vtris;
+
+		// SM Buffer Ptrs
+		FPositionVertexBuffer* vb;
+		FStaticMeshVertexBuffer* smvb;
+		FColorVertexBuffer* cvb;
+		FRawStaticIndexBuffer* ib;
+
+		int32 vert_count, ind_count, adj_count, tri_count;
+		bool has_uv, has_col;
+	} m_smData;
+
+	// Mesh Properties
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
+		UStaticMeshComponent* m_sm;
+
+	UPROPERTY(EditAnywhere, Category = "Cloth Simulation")
+		bool bShowStaticMesh;
+
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
+		void StaticToProcedural();
+
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
+		void InitCloth();
+
+	void SetParticle(Map& Current_Particles);
+	void OnRegister() override;
+
+	// --- Cloth Solver Methods ---
+	void TickUpdateCloth();
+
 	// Sets default values for this component's properties
 	UMassSpringComponent(const FObjectInitializer& ObjectInitializer);
 	//UMassSpringComponent(const FObjectInitializer& ObjectInitializer, mass_spring_system* system, float* vbuff);
@@ -264,16 +344,23 @@ public:
 
 	// --- MassSpring - Properties - Cloth Simulation ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
-		bool bDoSimulate = true;
+		bool bDoSimulate = false;
 
-	mass_spring_system* system;
-	MassSpringSolver* m_solver;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Simulation", meta = (ClampMin = "0.005", UIMin = "0.005", UIMax = "0.1"))
+		float SubstepTime;
+
+	static const int m_iter = 5; // iterations per time step | 10
+	float At = 0.0f, Dt, St;
+	bool IsInit = false; // √ ±‚»≠
+
+	TSharedPtr<mass_spring_system> m_system;
+	TSharedPtr<MassSpringSolver> m_solver;
+
+	// Constraint Graph
+	CgRootNode* m_cgRootNode;
 
 	// solve iterations
-	void solve(unsigned int n);
-	void timedSolve(unsigned int ms);
-
-private:
+	void AnimateCloth(int value);
 
 protected:
 	// Called when the game starts

@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 #include "MassSpringComponent.h"
-
+#include "Engine/World.h"
+#include "DrawDebugHelpers.h"
+#include "StaticMeshResources.h"
 
 // S Y S T E M //////////////////////////////////////////////////////////////////////////////////////
 mass_spring_system::mass_spring_system(
@@ -21,11 +23,11 @@ mass_spring_system::mass_spring_system(
 
 // S O L V E R //////////////////////////////////////////////////////////////////////////////////////
 MassSpringSolver::MassSpringSolver(mass_spring_system* system, float* vbuff)
-	: system(system), 
-	current_state(vbuff, system->n_points * 3),
+	:current_state(vbuff, system->n_points * 3),
 	prev_state(current_state), 
 	spring_directions(system->n_springs * 3)
 {
+	s_system = MakeShareable(system);
 
 	float h2 = system->time_step * system->time_step; // shorthand
 
@@ -79,12 +81,12 @@ MassSpringSolver::MassSpringSolver(mass_spring_system* system, float* vbuff)
 }
 
 void MassSpringSolver::globalStep() {
-	float h2 = system->time_step * system->time_step; // shorthand
+	float h2 = s_system.Get()->time_step * s_system.Get()->time_step; // shorthand
 
 	// compute right hand side
 	VectorXf b = inertial_term
 		+ h2 * J * spring_directions
-		+ h2 * system->fext;
+		+ h2 * s_system.Get()->fext;
 
 	// solve system and update state
 	//VectorXf temp = system_matrix.solve(b);
@@ -98,7 +100,7 @@ void MassSpringSolver::globalStep() {
 
 void MassSpringSolver::localStep() {
 	unsigned int j = 0;
-	for (Edge& i : system->spring_list) {
+	for (Edge& i : s_system.Get()->spring_list) {
 		Vector3f p12(
 			current_state[3 * i.first + 0] - current_state[3 * i.second + 0],
 			current_state[3 * i.first + 1] - current_state[3 * i.second + 1],
@@ -106,15 +108,15 @@ void MassSpringSolver::localStep() {
 		);
 
 		p12.normalize();
-		spring_directions[3 * j + 0] = system->rest_lengths[j] * p12[0];
-		spring_directions[3 * j + 1] = system->rest_lengths[j] * p12[1];
-		spring_directions[3 * j + 2] = system->rest_lengths[j] * p12[2];
+		spring_directions[3 * j + 0] = s_system.Get()->rest_lengths[j] * p12[0];
+		spring_directions[3 * j + 1] = s_system.Get()->rest_lengths[j] * p12[1];
+		spring_directions[3 * j + 2] = s_system.Get()->rest_lengths[j] * p12[2];
 		j++;
 	}
 }
 
 void MassSpringSolver::solve(unsigned int n) {
-	float a = system->damping_factor; // shorthand
+	float a = s_system.Get()->damping_factor; // shorthand
 
 	// update inertial term
 	inertial_term = M * ((a + 1) * (current_state)- a * prev_state);
@@ -399,10 +401,171 @@ bool CgSatisfyVisitor::visit(CgSpringNode& node) { node.satisfy(); return true; 
 void CgSatisfyVisitor::satisfy(CgNode& root) { root.accept(*this); }
 
 
-UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer) 
+	: Super(ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = true; 
 	bTickInEditor = true;
+
+	m_sm = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ClothStaticMesh"));
+	m_smData.vb = nullptr;
+	m_smData.cvb = nullptr;
+	m_smData.smvb = nullptr;
+	m_smData.ib = nullptr;
+
+	bShowStaticMesh = true;
+}
+
+void UMassSpringComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	UWorld* world = GetWorld();
+	if (world->IsPlayInEditor())
+	{
+		StaticToProcedural();
+	}
+
+	m_sm->SetVisibility(bShowStaticMesh);
+}
+
+void UMassSpringComponent::StaticToProcedural()
+{
+	UStaticMesh* sm = m_sm->GetStaticMesh();
+	if (sm == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("No Static Mesh"));
+		return;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Mesh Founded"));
+	}
+	FStaticMeshLODResources* lod0 = *(sm->RenderData->LODResources.GetData());
+
+	m_smData.vb = &(lod0->VertexBuffers.PositionVertexBuffer); // Position Vertex Buffer (Position)
+	m_smData.smvb = &(lod0->VertexBuffers.StaticMeshVertexBuffer); // Static Mesh Buffer (Static Mesh)
+	m_smData.cvb = &(lod0->VertexBuffers.ColorVertexBuffer); // Color Vertex Buffer (Color)
+	m_smData.ib = &(lod0->IndexBuffer); // Tri Index Buffer (Index)
+
+	m_smData.vert_count = m_smData.vb->GetNumVertices(); // Vertex Counts
+	m_smData.ind_count = m_smData.ib->GetNumIndices(); // Index Counts
+	m_smData.tri_count = m_smData.ind_count / 3; // Triangle Counts
+	particleCount = m_smData.vert_count;
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("%d"), m_smData.vert_count));
+
+	UE_LOG(LogTemp, Warning, TEXT("DBG::Static Mesh Vertex Count == %d | Index Count = %d"), m_smData.vert_count, m_smData.ind_count);
+
+	// Initialize smData Arrays
+	m_smData.Pos.AddDefaulted(m_smData.vert_count);
+	m_smData.Col.AddDefaulted(m_smData.vert_count);
+	m_smData.Normal.AddDefaulted(m_smData.vert_count);
+	m_smData.Tang.AddDefaulted(m_smData.vert_count);
+	m_smData.UV.AddDefaulted(m_smData.vert_count);
+	m_smData.Ind.AddDefaulted(m_smData.ind_count);
+	m_smData.Tris.AddDefaulted(m_smData.tri_count);
+	Particles.AddDefaulted(particleCount);
+
+	ClearAllMeshSections(); // Delete previous mesh data
+
+	m_smData.has_uv = m_smData.smvb->GetNumTexCoords() != 0;
+	m_smData.has_col = lod0->bHasColorVertexData;
+
+	// m_smData Buffer -> Array Deserialization
+	for (int32 i = 0; i < m_smData.vert_count; ++i)
+	{
+		m_smData.Pos[i] = m_smData.vb->VertexPosition(i); // Pass Verts Without Component Location Offset initally.
+		m_smData.Normal[i] = m_smData.smvb->VertexTangentZ(i);
+		m_smData.Tang[i] = FProcMeshTangent(FVector(m_smData.smvb->VertexTangentX(i).X, m_smData.smvb->VertexTangentX(i).Y, m_smData.smvb->VertexTangentX(i).Z), false);
+		m_smData.has_col == true ? m_smData.Col[i] = m_smData.cvb->VertexColor(i) : m_smData.Col[i] = FColor(255, 255, 255);
+		m_smData.has_uv == true ? m_smData.UV[i] = m_smData.smvb->GetVertexUV(i, 0) : m_smData.UV[i] = FVector2D(0.0f); // Only support 1 UV Channel fnow.
+
+		// Particle Initialize
+		FVector vertPtPos = GetComponentLocation() + m_smData.vb->VertexPosition(i); // Pts With Component Location Offset
+		Particles[i].Position = vertPtPos;
+		Particles[i].PrevPosition = vertPtPos;
+		Particles[i].ID = i;
+		lod0->bHasColorVertexData == true ? Particles[i].Col = m_smData.cvb->VertexColor(i) : Particles[i].Col = FColor(255, 255, 255);
+
+
+	}
+
+	for (int32 i = 0; i < m_smData.ind_count; i++)
+	{
+		m_smData.Ind[i] = static_cast<int32>(m_smData.ib->GetIndex(i));
+	}
+
+	// Create Cloth Mesh
+	CreateMeshSection(0, m_smData.Pos, m_smData.Ind, m_smData.Normal, m_smData.UV, m_smData.Col, m_smData.Tang, false);
+	bShowStaticMesh = false;
+	m_sm->SetVisibility(bShowStaticMesh);
+	clothStateExists = true;
+}
+
+void UMassSpringComponent::SetParticle(Map& Current_Particles)
+{
+	// Mass Spring으로부터 Solve()된 Particle 정보(current_state)를 Get
+	// 이를 Cloth의 Particles Array에 저장 (Particle Position)
+	// Mesh에 Update
+	for (int32 pt = 0; pt < particleCount; pt++)
+	{
+		FClothParticle& Particle = Particles[pt];
+		//VectorXf vectorXf = Current_Particles;
+
+		FVector NewPosition;
+		int ParticleNum = 0; // Check용
+		for (int32 i = pt; i < Current_Particles.size() - 2; i += 3)
+		{
+			NewPosition = FVector(
+				Current_Particles[i],
+				Current_Particles[i + 1],
+				Current_Particles[i + 2]);
+
+			Particle.PrevPosition = Particle.Position;
+			Particle.Position = NewPosition;
+			ParticleNum += 1;
+		}
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, 생성 ParticleNum은 %d"), particleCount, ParticleNum));
+	}
+}
+
+void UMassSpringComponent::TickUpdateCloth()
+{
+	// Mesh를 현재 지정된 Particles의 position에 따라 Update
+
+	check(particleCount == m_smData.vert_count);
+	//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Mesh Update 시작")));
+
+	// Update PM Position
+	TArray<FVector> UpdtPos; UpdtPos.AddDefaulted(particleCount);
+	TArray<FColor> UpdtCol; UpdtCol.AddDefaulted(particleCount);
+	TArray<FProcMeshTangent> UpdtTang; UpdtTang.AddDefaulted(particleCount);
+	TArray<FVector> UpdtNorm; UpdtNorm.AddDefaulted(particleCount);
+
+	// Update Tangents from cur Particles -- 일단 Pass
+	//UpdateTangents(UpdtTang, UpdtNorm);
+
+	// Copy Normals for Pressure Use
+	Normals = UpdtNorm;
+
+	// Update From Particle Attribs. 
+	if (!m_smData.has_col)
+	{
+		for (int32 i = 0; i < particleCount; ++i)
+		{
+			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
+		}
+		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, m_smData.Col, UpdtTang); // No Colour, Use SM Colour. 
+	}
+	else if (m_smData.has_col)
+	{
+		for (int32 i = 0; i < particleCount; ++i)
+		{
+			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
+			UpdtCol[i] = Particles[i].Col;
+		}
+		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, UpdtCol, UpdtTang); // Use Particle Colour --> Vertex Colour. 
+	}
 }
 
 // Called when the game starts
@@ -410,13 +573,153 @@ void UMassSpringComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// ...
-	
+	//
+	SubstepTime = 0.02f;
+	At = 0.0f;
+}
+
+void UMassSpringComponent::InitCloth()
+{
+	// InitCloth
+//static const int n = Cloth->GetVertexNum() + 1; // must be odd, n * n = n_vertices | 61
+	static const int n = 7; // must be odd, n * n = n_vertices | 61
+	static const float w = 2.0f; // width | 2.0f
+	static const float h = 0.008f; // time step, smaller for better results | 0.008f = 0.016f/2
+	static const float r = w / (n - 1) * 1.05f; // spring rest legnth
+	static const float k = 1.0f; // spring stiffness | 1.0f;
+	static const float m = 0.25f / (n * n); // point mass | 0.25f
+	static const float a = 0.993f; // damping, close to 1.0 | 0.993f
+	static const float g = 9.8f * m; // gravitational force | 9.8f
+
+	// generate mesh -- origin code
+	// MeshBuilder meshBuilder;
+	// meshBuilder.uniformGrid(w, n);
+	// g_clothMesh = meshBuilder.getResult();
+
+	//-- MODIFY --//
+	//-- TODO? --//
+	MassSpringBuilder* massSpringBuilder = new MassSpringBuilder();
+	massSpringBuilder->uniformGrid(
+		n,
+		h,
+		r,
+		k,
+		m,
+		a,
+		g
+	);
+	m_system = MakeShareable(massSpringBuilder->getResult());
+
+	// initialize mass spring solver
+	// Cloth의 Position을 받아와서 PariclePos에 저장. 이를 vbuff에 할당
+	// 
+	//float* vbuff = (float*)&Cloth->GetVertexBuffer()->VertexPosition(0);
+
+	float ParticlePos[147];
+	for (int32 i = 0, j = 0; j < Particles.Num(); i += 3)
+	{
+		ParticlePos[i] = Particles[j].Position.X;
+		ParticlePos[i + 1] = Particles[j].Position.Y;
+		ParticlePos[i + 2] = Particles[j].Position.Z;
+		j++;
+	}
+	float* vbuff = (float*)&ParticlePos;
+
+	//-- TODO? --//
+
+	// initialize mass spring solver
+	m_solver = MakeShareable(new MassSpringSolver(m_system.Get(), vbuff));
+	//MassSpring->m_solver->current_state = Map(ParticlePos, MassSpring->system->n_points * 3);
+	m_solver->prev_state = m_solver->current_state;
+
+	// deformation constraint parameters
+	const float tauc = 0.12f; // critical spring deformation | 0.12f
+	const unsigned int deformIter = 15; // number of iterations | 15
+
+	// sphere collision constraint parameters
+	const float radius = 0.64f; // sphere radius | 0.64f
+	const Eigen::Vector3f center(0, 0, -1);// sphere center | (0, 0, -1)
+
+	// initialize constraints
+	// sphere collision constraint
+	CgSphereCollisionNode* sphereCollisionNode =
+		new CgSphereCollisionNode(m_system.Get(), vbuff, radius, center);
+
+	// spring deformation constraint
+	CgSpringDeformationNode* deformationNode =
+		new CgSpringDeformationNode(m_system.Get(), vbuff, tauc, deformIter);
+	deformationNode->addSprings(massSpringBuilder->getShearIndex());
+	deformationNode->addSprings(massSpringBuilder->getStructIndex());
+
+	// fix top corners
+	CgPointFixNode* cornerFixer = new CgPointFixNode(m_system.Get(), vbuff);
+	cornerFixer->fixPoint(0);
+	cornerFixer->fixPoint(n - 1);
+	//
+	// initialize user interaction
+	//
+
+	// build constraint graph
+	m_cgRootNode = new CgRootNode(m_system.Get(), vbuff);
+
+	// first layer
+	m_cgRootNode->addChild(deformationNode);
+	m_cgRootNode->addChild(sphereCollisionNode);
+
+	// second layer
+	deformationNode->addChild(cornerFixer);
+
+	UE_LOG(LogTemp, Warning, TEXT("DBG::InitCloth Mass Spring System"));
+	IsInit = true;
+}
+
+void UMassSpringComponent::AnimateCloth(int value)
+{
+	// solve two time-steps
+	m_solver->solve(m_iter);
+	m_solver->solve(m_iter);
+
+	// fix points
+	CgSatisfyVisitor visitor;
+	visitor.satisfy(*m_cgRootNode);
+
+	// GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
+
+	//-- TODO: Light에 대한 Update --//
+	// update normals
+	//Cloth->get
+	//g_clothMesh->update_normals();
+	//g_clothMesh->release_face_normals();
 }
 
 // Called every frame
 void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	Dt = DeltaTime;
+	St = FMath::Max(SubstepTime, 0.01f); // Clamp to min substeptime. 
+
+	if (bDoSimulate)
+	{
+		if (!IsInit)
+		{
+			StaticToProcedural();
+			InitCloth();
+		}
+
+		AnimateCloth(0);
+		SetParticle(m_solver->current_state);
+		//At -= St;
+
+		TickUpdateCloth();
+	}
+
+	UWorld* world = GetWorld();
+	for (int32 i = 0; i < m_smData.vert_count - 1; ++i)
+	{
+		DrawDebugSphere(world, Particles[i].Position, 2.5f, 3, FColor(0, 255, 0));
+		DrawDebugLine(world, Particles[i].Position, Particles[i + 1].Position, FColor(255, 0, 0));
+	}
 }
 
