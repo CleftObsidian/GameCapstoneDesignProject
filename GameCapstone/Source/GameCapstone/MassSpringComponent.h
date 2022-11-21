@@ -48,47 +48,47 @@ struct mass_spring_system
 typedef Eigen::Map<Eigen::VectorXf> Map;
 
 // Mass-Spring System Solver class
-class MassSpringSolver {
-private:
-	typedef Eigen::Vector3f Vector3f;
-	typedef Eigen::VectorXf VectorXf;
-	typedef Eigen::SparseMatrix<float> SparseMatrix;
-	typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<float> > Cholesky;
-	typedef Eigen::Map<Eigen::VectorXf> Map;
-	typedef std::pair<unsigned int, unsigned int> Edge;
-	typedef Eigen::Triplet<float> Triplet;
-	typedef std::vector<Triplet> TripletList;
-
-	// system
-	TSharedPtr<mass_spring_system> s_system;
-	Cholesky system_matrix;
-
-	// M, L, J matrices
-	SparseMatrix M;
-	SparseMatrix L;
-	SparseMatrix J;
-
-	// state
-	// Map current_state; // q(n), current state -- Public
-	//VectorXf prev_state; // q(n - 1), previous state -- Public
-	VectorXf spring_directions; // d, spring directions 
-	VectorXf inertial_term; // M * y, y = (a + 1) * q(n) - a * q(n - 1)
-
-	// steps
-	void globalStep();
-	void localStep();
-
-public:
-	MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff);
-
-	Map current_state; // q(n), current state
-	VectorXf prev_state; // q(n - 1), previous state
-	// solve iterations
-	void solve(unsigned int n);
-	void timedSolve(unsigned int ms);
-
-	Map& GetCurrentState();
-};
+//class MassSpringSolver {
+//private:
+//	typedef Eigen::Vector3f Vector3f;
+//	typedef Eigen::VectorXf VectorXf;
+//	typedef Eigen::SparseMatrix<float> SparseMatrix;
+//	typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<float> > Cholesky;
+//	typedef Eigen::Map<Eigen::VectorXf> Map;
+//	typedef std::pair<unsigned int, unsigned int> Edge;
+//	typedef Eigen::Triplet<float> Triplet;
+//	typedef std::vector<Triplet> TripletList;
+//
+//	// system
+//	TSharedPtr<mass_spring_system> s_system;
+//	Cholesky system_matrix;
+//
+//	// M, L, J matrices
+//	SparseMatrix M;
+//	SparseMatrix L;
+//	SparseMatrix J;
+//
+//	// state
+//	// Map current_state; // q(n), current state -- Public
+//	//VectorXf prev_state; // q(n - 1), previous state -- Public
+//	VectorXf spring_directions; // d, spring directions 
+//	VectorXf inertial_term; // M * y, y = (a + 1) * q(n) - a * q(n - 1)
+//
+//	// steps
+//	void globalStep();
+//	void localStep();
+//
+//public:
+//	MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff);
+//
+//	Map current_state; // q(n), current state
+//	VectorXf prev_state; // q(n - 1), previous state
+//	// solve iterations
+//	void solve(unsigned int n);
+//	void timedSolve(unsigned int ms);
+//
+//	Map& GetCurrentState();
+//};
 
 
 // Mass-Spring System Builder Class
@@ -140,7 +140,6 @@ public:
 
 	virtual void satisfy() = 0; // satisfy constraint
 	virtual bool accept(CgNodeVisitor& visitor) = 0; // accept visitor
-
 };
 
 // point constraint node
@@ -149,7 +148,6 @@ public:
 	CgPointNode(mass_spring_system* system, float* vbuff);
 	virtual bool query(unsigned int i) const = 0; // check if point with index i is constrained
 	virtual bool accept(CgNodeVisitor& visitor);
-
 };
 
 // spring constraint node
@@ -275,8 +273,29 @@ class GAMECAPSTONE_API UMassSpringComponent : public UProceduralMeshComponent
 	GENERATED_BODY()
 
 private:
+	typedef Eigen::Vector3f Vector3f;
 	typedef Eigen::VectorXf VectorXf;
+	typedef Eigen::SparseMatrix<float> SparseMatrix;
+	typedef Eigen::SimplicialLLT<Eigen::SparseMatrix<float> > Cholesky;
 	typedef Eigen::Map<Eigen::VectorXf> Map;
+	typedef std::pair<unsigned int, unsigned int> Edge;
+	typedef Eigen::Triplet<float> Triplet;
+	typedef std::vector<Triplet> TripletList;
+
+	// -- Mass Spring Solver -- //
+	Cholesky system_matrix;
+	// M, L, J matrices
+	SparseMatrix M;
+	SparseMatrix L;
+	SparseMatrix J;
+	// state
+	// Map current_state; // q(n), current state -- Public
+	//VectorXf prev_state; // q(n - 1), previous state -- Public
+	VectorXf spring_directions; // d, spring directions 
+	VectorXf inertial_term; // M * y, y = (a + 1) * q(n) - a * q(n - 1)
+	// steps
+	void globalStep();
+	void localStep();
 
 	// --- Cloth Data ---
 	// TArray<FClothParticle> Particles; // Public
@@ -289,6 +308,19 @@ private:
 	bool clothStateExists, world_collided;
 
 public:
+	TSharedPtr<mass_spring_system> m_system;
+	//TSharedPtr<MassSpringSolver> m_solver;
+
+	float arr[5] = { 0,0,0,0,0 };
+	float* ptr = arr;
+	TSharedPtr<float> vbuff;
+
+	//Map current_state; // q(n), current state
+	VectorXf current_state;
+	VectorXf prev_state; // q(n - 1), previous state
+
+	// Constraint Graph
+	CgRootNode* m_cgRootNode;
 	TArray<FClothParticle> Particles;
 	struct
 	{
@@ -314,53 +346,50 @@ public:
 		bool has_uv, has_col;
 	} m_smData;
 
-	// Mesh Properties
+	// -- Mesh Properties
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite)
 		UStaticMeshComponent* m_sm;
-
 	UPROPERTY(EditAnywhere, Category = "Cloth Simulation")
 		bool bShowStaticMesh;
-
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
 		void StaticToProcedural();
-
-	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
-		void InitCloth();
-
-	void SetParticle(Map& Current_Particles);
 	void OnRegister() override;
-
-	// --- Cloth Solver Methods ---
 	void TickUpdateCloth();
 
-	// Sets default values for this component's properties	
-	UMassSpringComponent(const FObjectInitializer& ObjectInitializer);
-
-	// --- UActorComponent Overrides ---
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-	// --- MassSpring - Properties - Cloth Simulation ---
+	// -- Mass Spring
+	// Sets default values for this component's properties		
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
 		bool bDoSimulate = false;
-
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Simulation", meta = (ClampMin = "0.005", UIMin = "0.005", UIMax = "0.1"))
 		float SubstepTime;
+
+	UMassSpringComponent(const FObjectInitializer& ObjectInitializer);
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
+		void InitCloth();
 
 	static const int m_iter = 1; // iterations per time step | 10
 	float At = 0.0f, Dt, St;
 	bool IsInit = false; // √ ±‚»≠
 
-	TSharedPtr<mass_spring_system> m_system;
-	TSharedPtr<MassSpringSolver> m_solver;
-
-	// Constraint Graph
-	CgRootNode* m_cgRootNode;
-
+	void SetParticle(VectorXf& Current_Particles);
+	
+	// --- Cloth Solver Methods ---
+	void MassSpringSolver();
 	// solve iterations
+	void solve(unsigned int n);
 	void AnimateCloth(int value);
 
-protected:
-	// Called when the game starts
-	virtual void BeginPlay() override;
+	
 
+	// --- UActorComponent Overrides ---
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+
+
+	
+
+	
+
+protected:
+	virtual void BeginPlay() override;
 };

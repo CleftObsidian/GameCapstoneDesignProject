@@ -22,43 +22,153 @@ mass_spring_system::mass_spring_system(
 	fext(fext), damping_factor(damping_factor) {}
 
 // S O L V E R //////////////////////////////////////////////////////////////////////////////////////
-MassSpringSolver::MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff)
-	:s_system(system), current_state(vbuff, system->n_points * 3),
-	prev_state(current_state), 
-	spring_directions(system->n_springs * 3)
-{
+//MassSpringSolver::MassSpringSolver(TSharedPtr<mass_spring_system> system, float* vbuff)
+//	:s_system(system), current_state(vbuff, system->n_points * 3),
+//	prev_state(current_state), 
+//	spring_directions(system->n_springs * 3)
+//{
+//
+//	float h2 = system->time_step * system->time_step; // shorthand
+//
+//	// compute M, L, J
+//	TripletList LTriplets, JTriplets;
+//	// L
+//	L.resize(3 * system->n_points, 3 * system->n_points);
+//	unsigned int k = 0; // spring counter
+//	for (Edge& i : system->spring_list) {
+//		for (int j = 0; j < 3; j++) {
+//			LTriplets.push_back(
+//				Triplet(3 * i.first + j, 3 * i.first + j, 1 * system->stiffnesses[k]));
+//			LTriplets.push_back(
+//				Triplet(3 * i.first + j, 3 * i.second + j, -1 * system->stiffnesses[k]));
+//			LTriplets.push_back(
+//				Triplet(3 * i.second + j, 3 * i.first + j, -1 * system->stiffnesses[k]));
+//			LTriplets.push_back(
+//				Triplet(3 * i.second + j, 3 * i.second + j, 1 * system->stiffnesses[k]));
+//		}
+//		k++;
+//	}
+//	L.setFromTriplets(LTriplets.begin(), LTriplets.end());
+//
+//	// J
+//	J.resize(3 * system->n_points, 3 * system->n_springs);
+//	k = 0; // spring counter
+//	for (Edge& i : system->spring_list) {
+//		for (unsigned int j = 0; j < 3; j++) {
+//			JTriplets.push_back(
+//				Triplet(3 * i.first + j, 3 * k + j, 1 * system->stiffnesses[k]));
+//			JTriplets.push_back(
+//				Triplet(3 * i.second + j, 3 * k + j, -1 * system->stiffnesses[k]));
+//		}
+//		k++;
+//	}
+//	J.setFromTriplets(JTriplets.begin(), JTriplets.end());
+//
+//	// M
+//	TripletList MTriplets;
+//	M.resize(3 * system->n_points, 3 * system->n_points);
+//	for (unsigned int i = 0; i < system->n_points; i++) {
+//		for (int j = 0; j < 3; j++) {
+//			MTriplets.push_back(Triplet(3 * i + j, 3 * i + j, system->masses[i]));
+//		}
+//	}
+//	M.setFromTriplets(MTriplets.begin(), MTriplets.end());
+//
+//	// pre-factor system matrix
+//	SparseMatrix A = M + h2 * L;
+//	system_matrix.compute(A);
+//}
+//
+//void MassSpringSolver::globalStep() {
+//	float h2 = s_system.Get()->time_step * s_system.Get()->time_step; // shorthand
+//
+//	// compute right hand side
+//	VectorXf b = inertial_term
+//		+ h2 * J * spring_directions
+//		+ h2 * s_system.Get()->fext;
+//
+//	current_state = system_matrix.solve(b); // Origin code
+//}
+//
+//void MassSpringSolver::localStep() {
+//	unsigned int j = 0;
+//	for (Edge& i : s_system.Get()->spring_list) {
+//		Vector3f p12(
+//			current_state[3 * i.first + 0] - current_state[3 * i.second + 0],
+//			current_state[3 * i.first + 1] - current_state[3 * i.second + 1],
+//			current_state[3 * i.first + 2] - current_state[3 * i.second + 2]
+//		);
+//
+//		p12.normalize();
+//		spring_directions[3 * j + 0] = s_system.Get()->rest_lengths[j] * p12[0];
+//		spring_directions[3 * j + 1] = s_system.Get()->rest_lengths[j] * p12[1];
+//		spring_directions[3 * j + 2] = s_system.Get()->rest_lengths[j] * p12[2];
+//		j++;
+//	}
+//}
+//
+//void MassSpringSolver::solve(unsigned int n) {
+//	float a = s_system.Get()->damping_factor; // shorthand
+//
+//	// update inertial term
+//	inertial_term = M * ((a + 1) * (current_state)- a * prev_state);
+//
+//	// save current state in previous state
+//	prev_state = current_state;
+//
+//	// perform steps
+//	for (unsigned int i = 0; i < n; i++) {
+//		localStep();
+//		globalStep();
+//	}
+//}
+//
+//void MassSpringSolver::timedSolve(unsigned int ms) {
+//	// TODO
+//}
+//
+//Map& MassSpringSolver::GetCurrentState()
+//{
+//	return current_state;
+//}
 
-	float h2 = system->time_step * system->time_step; // shorthand
+void UMassSpringComponent::MassSpringSolver()
+{
+	current_state = VectorXf::Map(vbuff.Get(), m_system->n_points * 3);
+	prev_state = current_state;
+	spring_directions = VectorXf(m_system->n_springs * 3);
+
+	float h2 = m_system->time_step * m_system->time_step; // shorthand
 
 	// compute M, L, J
 	TripletList LTriplets, JTriplets;
 	// L
-	L.resize(3 * system->n_points, 3 * system->n_points);
+	L.resize(3 * m_system->n_points, 3 * m_system->n_points);
 	unsigned int k = 0; // spring counter
-	for (Edge& i : system->spring_list) {
+	for (Edge& i : m_system->spring_list) {
 		for (int j = 0; j < 3; j++) {
 			LTriplets.push_back(
-				Triplet(3 * i.first + j, 3 * i.first + j, 1 * system->stiffnesses[k]));
+				Triplet(3 * i.first + j, 3 * i.first + j, 1 * m_system->stiffnesses[k]));
 			LTriplets.push_back(
-				Triplet(3 * i.first + j, 3 * i.second + j, -1 * system->stiffnesses[k]));
+				Triplet(3 * i.first + j, 3 * i.second + j, -1 * m_system->stiffnesses[k]));
 			LTriplets.push_back(
-				Triplet(3 * i.second + j, 3 * i.first + j, -1 * system->stiffnesses[k]));
+				Triplet(3 * i.second + j, 3 * i.first + j, -1 * m_system->stiffnesses[k]));
 			LTriplets.push_back(
-				Triplet(3 * i.second + j, 3 * i.second + j, 1 * system->stiffnesses[k]));
+				Triplet(3 * i.second + j, 3 * i.second + j, 1 * m_system->stiffnesses[k]));
 		}
 		k++;
 	}
 	L.setFromTriplets(LTriplets.begin(), LTriplets.end());
 
 	// J
-	J.resize(3 * system->n_points, 3 * system->n_springs);
+	J.resize(3 * m_system->n_points, 3 * m_system->n_springs);
 	k = 0; // spring counter
-	for (Edge& i : system->spring_list) {
+	for (Edge& i : m_system->spring_list) {
 		for (unsigned int j = 0; j < 3; j++) {
 			JTriplets.push_back(
-				Triplet(3 * i.first + j, 3 * k + j, 1 * system->stiffnesses[k]));
+				Triplet(3 * i.first + j, 3 * k + j, 1 * m_system->stiffnesses[k]));
 			JTriplets.push_back(
-				Triplet(3 * i.second + j, 3 * k + j, -1 * system->stiffnesses[k]));
+				Triplet(3 * i.second + j, 3 * k + j, -1 * m_system->stiffnesses[k]));
 		}
 		k++;
 	}
@@ -66,10 +176,10 @@ MassSpringSolver::MassSpringSolver(TSharedPtr<mass_spring_system> system, float*
 
 	// M
 	TripletList MTriplets;
-	M.resize(3 * system->n_points, 3 * system->n_points);
-	for (unsigned int i = 0; i < system->n_points; i++) {
+	M.resize(3 * m_system->n_points, 3 * m_system->n_points);
+	for (unsigned int i = 0; i < m_system->n_points; i++) {
 		for (int j = 0; j < 3; j++) {
-			MTriplets.push_back(Triplet(3 * i + j, 3 * i + j, system->masses[i]));
+			MTriplets.push_back(Triplet(3 * i + j, 3 * i + j, m_system->masses[i]));
 		}
 	}
 	M.setFromTriplets(MTriplets.begin(), MTriplets.end());
@@ -79,20 +189,20 @@ MassSpringSolver::MassSpringSolver(TSharedPtr<mass_spring_system> system, float*
 	system_matrix.compute(A);
 }
 
-void MassSpringSolver::globalStep() {
-	float h2 = s_system.Get()->time_step * s_system.Get()->time_step; // shorthand
+void UMassSpringComponent::globalStep() {
+	float h2 = m_system.Get()->time_step * m_system.Get()->time_step; // shorthand
 
 	// compute right hand side
 	VectorXf b = inertial_term
 		+ h2 * J * spring_directions
-		+ h2 * s_system.Get()->fext;
+		+ h2 * m_system.Get()->fext;
 
 	current_state = system_matrix.solve(b); // Origin code
 }
 
-void MassSpringSolver::localStep() {
+void UMassSpringComponent::localStep() {
 	unsigned int j = 0;
-	for (Edge& i : s_system.Get()->spring_list) {
+	for (Edge& i : m_system.Get()->spring_list) {
 		Vector3f p12(
 			current_state[3 * i.first + 0] - current_state[3 * i.second + 0],
 			current_state[3 * i.first + 1] - current_state[3 * i.second + 1],
@@ -100,15 +210,15 @@ void MassSpringSolver::localStep() {
 		);
 
 		p12.normalize();
-		spring_directions[3 * j + 0] = s_system.Get()->rest_lengths[j] * p12[0];
-		spring_directions[3 * j + 1] = s_system.Get()->rest_lengths[j] * p12[1];
-		spring_directions[3 * j + 2] = s_system.Get()->rest_lengths[j] * p12[2];
+		spring_directions[3 * j + 0] = m_system.Get()->rest_lengths[j] * p12[0];
+		spring_directions[3 * j + 1] = m_system.Get()->rest_lengths[j] * p12[1];
+		spring_directions[3 * j + 2] = m_system.Get()->rest_lengths[j] * p12[2];
 		j++;
 	}
 }
 
-void MassSpringSolver::solve(unsigned int n) {
-	float a = s_system.Get()->damping_factor; // shorthand
+void UMassSpringComponent::solve(unsigned int n) {
+	float a = m_system.Get()->damping_factor; // shorthand
 
 	// update inertial term
 	inertial_term = M * ((a + 1) * (current_state)- a * prev_state);
@@ -121,15 +231,6 @@ void MassSpringSolver::solve(unsigned int n) {
 		localStep();
 		globalStep();
 	}
-}
-
-void MassSpringSolver::timedSolve(unsigned int ms) {
-	// TODO
-}
-
-Map& MassSpringSolver::GetCurrentState()
-{
-	return current_state;
 }
 
 // B U I L D E R ////////////////////////////////////////////////////////////////////////////////////
@@ -392,7 +493,7 @@ bool CgSatisfyVisitor::visit(CgPointNode& node) { node.satisfy(); return true; }
 bool CgSatisfyVisitor::visit(CgSpringNode& node) { node.satisfy(); return true; }
 void CgSatisfyVisitor::satisfy(CgNode& root) { root.accept(*this); }
 
-UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer) 
+UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = true; 
@@ -495,7 +596,7 @@ void UMassSpringComponent::StaticToProcedural()
 	clothStateExists = true;
 }
 
-void UMassSpringComponent::SetParticle(Map& Current_Particles)
+void UMassSpringComponent::SetParticle(VectorXf& Current_Particles)
 {
 	// Mass Spring으로부터 Solve()된 Particle 정보(current_state)를 Get
 	// 이를 Cloth의 Particles Array에 저장 (Particle Position)
@@ -616,14 +717,14 @@ void UMassSpringComponent::InitCloth()
 		ParticlePos[i + 2] = Particles[j].Position.Z;
 		j++;
 	}
-	float* vbuff = (float*)&ParticlePos;
+	vbuff = MakeShareable((float*)&ParticlePos);
 
 	//-- TODO? --//
 
 	// initialize mass spring solver
-	m_solver = MakeShareable(new MassSpringSolver(m_system, vbuff));
-	m_solver->current_state = Map(ParticlePos, m_system->n_points * 3);
-	m_solver.Get()->prev_state = m_solver.Get()->current_state;
+	MassSpringSolver();
+	current_state = Map(ParticlePos, m_system->n_points * 3);
+	prev_state = current_state;
 
 	// deformation constraint parameters
 	const float tauc = 0.12f; // critical spring deformation | 0.12f
@@ -636,31 +737,31 @@ void UMassSpringComponent::InitCloth()
 	// initialize constraints
 	// sphere collision constraint
 	CgSphereCollisionNode* sphereCollisionNode =
-		new CgSphereCollisionNode(m_system.Get(), vbuff, radius, center);
+		new CgSphereCollisionNode(m_system.Get(), vbuff.Get(), radius, center);
 
 	// spring deformation constraint
 	CgSpringDeformationNode* deformationNode =
-		new CgSpringDeformationNode(m_system.Get(), vbuff, tauc, deformIter);
+		new CgSpringDeformationNode(m_system.Get(), vbuff.Get(), tauc, deformIter);
 	deformationNode->addSprings(massSpringBuilder->getShearIndex());
 	deformationNode->addSprings(massSpringBuilder->getStructIndex());
 
 	// fix top corners
-	CgPointFixNode* cornerFixer = new CgPointFixNode(m_system.Get(), vbuff);
-	cornerFixer->fixPoint(0);
-	cornerFixer->fixPoint(n - 1);
+	//CgPointFixNode* cornerFixer = new CgPointFixNode(m_system.Get(), vbuff);
+	//cornerFixer->fixPoint(0);
+	//cornerFixer->fixPoint(n - 1);
 	//
 	// initialize user interaction
 	//
 
 	// build constraint graph
-	m_cgRootNode = new CgRootNode(m_system.Get(), vbuff);
+	m_cgRootNode = new CgRootNode(m_system.Get(), vbuff.Get());
 
 	// first layer
 	m_cgRootNode->addChild(deformationNode);
 	m_cgRootNode->addChild(sphereCollisionNode);
 
 	// second layer
-	deformationNode->addChild(cornerFixer);
+	//deformationNode->addChild(cornerFixer);
 
 	UE_LOG(LogTemp, Warning, TEXT("DBG::InitCloth Mass Spring System"));
 	IsInit = true;
@@ -669,8 +770,8 @@ void UMassSpringComponent::InitCloth()
 void UMassSpringComponent::AnimateCloth(int value)
 {
 	// solve two time-steps
-	m_solver.Get()->solve(m_iter);
-	m_solver.Get()->solve(m_iter);
+	solve(m_iter);
+	solve(m_iter);
 
 	// fix points
 	CgSatisfyVisitor visitor;
@@ -702,7 +803,7 @@ void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 		}
 
 		AnimateCloth(0);
-		SetParticle(m_solver->current_state);
+		SetParticle(current_state);
 		TickUpdateCloth();
 	}
 
