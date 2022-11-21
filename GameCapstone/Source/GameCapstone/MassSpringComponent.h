@@ -271,7 +271,6 @@ UCLASS(hidecategories = (Object, Physics, Activation, Collision, Navigation, Tra
 class GAMECAPSTONE_API UMassSpringComponent : public UProceduralMeshComponent
 {
 	GENERATED_BODY()
-
 private:
 	typedef Eigen::Vector3f Vector3f;
 	typedef Eigen::VectorXf VectorXf;
@@ -307,7 +306,14 @@ private:
 	// --- State Flags --- 
 	bool clothStateExists, world_collided;
 
+	friend class CgRootNode;
+	friend struct mass_spring_system;
+
 public:
+	// --- UActorComponent Overrides ---
+	void OnRegister() override;
+	void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	TSharedPtr<mass_spring_system> m_system;
 	//TSharedPtr<MassSpringSolver> m_solver;
 
@@ -320,7 +326,7 @@ public:
 	VectorXf prev_state; // q(n - 1), previous state
 
 	// Constraint Graph
-	CgRootNode* m_cgRootNode;
+	TSharedPtr<CgRootNode> m_cgRootNode;
 	TArray<FClothParticle> Particles;
 	struct
 	{
@@ -353,13 +359,13 @@ public:
 		bool bShowStaticMesh;
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
 		void StaticToProcedural();
-	void OnRegister() override;
+	
 	void TickUpdateCloth();
 
 	// -- Mass Spring
 	// Sets default values for this component's properties		
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
-		bool bDoSimulate = false;
+		bool bDoSimulate = true;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Simulation", meta = (ClampMin = "0.005", UIMin = "0.005", UIMax = "0.1"))
 		float SubstepTime;
 
@@ -367,7 +373,7 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
 		void InitCloth();
 
-	static const int m_iter = 1; // iterations per time step | 10
+	static const int m_iter = 5; // iterations per time step | 10
 	float At = 0.0f, Dt, St;
 	bool IsInit = false; // √ ±‚»≠
 
@@ -378,18 +384,4 @@ public:
 	// solve iterations
 	void solve(unsigned int n);
 	void AnimateCloth(int value);
-
-	
-
-	// --- UActorComponent Overrides ---
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-
-
-
-	
-
-	
-
-protected:
-	virtual void BeginPlay() override;
 };

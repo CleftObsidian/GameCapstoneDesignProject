@@ -496,7 +496,8 @@ void CgSatisfyVisitor::satisfy(CgNode& root) { root.accept(*this); }
 UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	PrimaryComponentTick.bCanEverTick = true; 
+	PrimaryComponentTick.bCanEverTick = false; 
+	bWantsInitializeComponent = true; // 이걸 true해야 InitializeComponent 함수가 호출됨.
 	bTickInEditor = true;
 
 	// SM Init
@@ -506,6 +507,9 @@ UMassSpringComponent::UMassSpringComponent(const FObjectInitializer& ObjectIniti
 	m_smData.cvb = nullptr;
 	m_smData.smvb = nullptr;
 	m_smData.ib = nullptr;
+
+	SubstepTime = 0.02f;
+	At = 0.0f;
 
 	bShowStaticMesh = true;
 }
@@ -518,9 +522,10 @@ void UMassSpringComponent::OnRegister()
 	if (world->IsPlayInEditor())
 	{
 		StaticToProcedural();
+		InitCloth();
+		m_sm->SetVisibility(bShowStaticMesh);
+		UE_LOG(LogTemp, Error, TEXT("Mass Spring On Register"));
 	}
-
-	m_sm->SetVisibility(bShowStaticMesh);
 }
 
 void UMassSpringComponent::StaticToProcedural()
@@ -601,26 +606,22 @@ void UMassSpringComponent::SetParticle(VectorXf& Current_Particles)
 	// Mass Spring으로부터 Solve()된 Particle 정보(current_state)를 Get
 	// 이를 Cloth의 Particles Array에 저장 (Particle Position)
 	// Mesh에 Update
-	for (int32 pt = 0; pt < particleCount; pt++)
+	int ParticleNum = 0; // Check용
+	for (int32 pt = 0, i = 0; pt < particleCount; pt++, i += 3)
 	{
 		FClothParticle& Particle = Particles[pt];
 		//VectorXf vectorXf = Current_Particles;
 
-		FVector NewPosition;
-		int ParticleNum = 0; // Check용
-		for (int32 i = pt; i < Current_Particles.size() - 2; i += 3)
-		{
-			NewPosition = FVector(
-				Current_Particles[i],
-				Current_Particles[i + 1],
-				Current_Particles[i + 2]);
+		FVector NewPosition = FVector(
+			Current_Particles[i],
+			Current_Particles[i + 1],
+			Current_Particles[i + 2]);
 
-			Particle.PrevPosition = Particle.Position;
-			Particle.Position = NewPosition;
-			ParticleNum += 1;
-		}
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, 생성 ParticleNum은 %d"), particleCount, ParticleNum));
+		Particle.PrevPosition = Particle.Position;
+		Particle.Position = NewPosition;
+		ParticleNum += 1;
 	}
+	GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Yellow, FString::Printf(TEXT("Particle은 %d, New ParticleNum is %d"), particleCount, ParticleNum));
 }
 
 void UMassSpringComponent::TickUpdateCloth()
@@ -650,6 +651,7 @@ void UMassSpringComponent::TickUpdateCloth()
 			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
 		}
 		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, m_smData.Col, UpdtTang); // No Colour, Use SM Colour. 
+		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("TickUpdateCloth()::particleCount은 %d"), particleCount));
 	}
 	else if (m_smData.has_col)
 	{
@@ -660,16 +662,6 @@ void UMassSpringComponent::TickUpdateCloth()
 		}
 		UpdateMeshSection(0, UpdtPos, UpdtNorm, m_smData.UV, UpdtCol, UpdtTang); // Use Particle Colour --> Vertex Colour. 
 	}
-}
-
-// Called when the game starts
-void UMassSpringComponent::BeginPlay()
-{
-	Super::BeginPlay();
-
-	//
-	SubstepTime = 0.02f;
-	At = 0.0f;
 }
 
 void UMassSpringComponent::InitCloth()
@@ -683,7 +675,7 @@ void UMassSpringComponent::InitCloth()
 	static const float k = 1.0f; // spring stiffness | 1.0f;
 	static const float m = 0.25f / (n * n); // point mass | 0.25f
 	static const float a = 0.993f; // damping, close to 1.0 | 0.993f
-	static const float g = 9.8f * m; // gravitational force | 9.8f
+	static const float g = 0 * m; // gravitational force | 9.8f
 
 	// generate mesh -- origin code
 	// MeshBuilder meshBuilder;
@@ -736,8 +728,8 @@ void UMassSpringComponent::InitCloth()
 
 	// initialize constraints
 	// sphere collision constraint
-	CgSphereCollisionNode* sphereCollisionNode =
-		new CgSphereCollisionNode(m_system.Get(), vbuff.Get(), radius, center);
+	//CgSphereCollisionNode* sphereCollisionNode =
+	//	new CgSphereCollisionNode(m_system.Get(), vbuff.Get(), radius, center);
 
 	// spring deformation constraint
 	CgSpringDeformationNode* deformationNode =
@@ -746,7 +738,7 @@ void UMassSpringComponent::InitCloth()
 	deformationNode->addSprings(massSpringBuilder->getStructIndex());
 
 	// fix top corners
-	//CgPointFixNode* cornerFixer = new CgPointFixNode(m_system.Get(), vbuff);
+	//CgPointFixNode* cornerFixer = new CgPointFixNode(m_system.Get(), vbuff.Get());
 	//cornerFixer->fixPoint(0);
 	//cornerFixer->fixPoint(n - 1);
 	//
@@ -754,17 +746,18 @@ void UMassSpringComponent::InitCloth()
 	//
 
 	// build constraint graph
-	m_cgRootNode = new CgRootNode(m_system.Get(), vbuff.Get());
+	m_cgRootNode = MakeShareable(new CgRootNode(m_system.Get(), vbuff.Get()));
 
 	// first layer
 	m_cgRootNode->addChild(deformationNode);
-	m_cgRootNode->addChild(sphereCollisionNode);
+	//m_cgRootNode->addChild(sphereCollisionNode);
 
 	// second layer
 	//deformationNode->addChild(cornerFixer);
 
 	UE_LOG(LogTemp, Warning, TEXT("DBG::InitCloth Mass Spring System"));
 	IsInit = true;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 void UMassSpringComponent::AnimateCloth(int value)
@@ -775,7 +768,7 @@ void UMassSpringComponent::AnimateCloth(int value)
 
 	// fix points
 	CgSatisfyVisitor visitor;
-	visitor.satisfy(*m_cgRootNode);
+	visitor.satisfy(m_cgRootNode.ToSharedRef().Get()); //?
 
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
 
@@ -796,20 +789,21 @@ void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	if (bDoSimulate)
 	{
-		if (!IsInit)
+		At += Dt;
+		while (At > St)
 		{
-			StaticToProcedural();
-			InitCloth();
+			AnimateCloth(0);
+			SetParticle(current_state);
+			At -= St;
 		}
-
-		AnimateCloth(0);
-		SetParticle(current_state);
+		
 		TickUpdateCloth();
 	}
 
 	UWorld* world = GetWorld();
 	for (int32 i = 0; i < m_smData.vert_count - 1; ++i)
 	{
+		//DrawDebugString(world, Particles[i].Position, FString::Printf(TEXT("%d"), i), this->GetAttachmentRootActor() ,FColor::Magenta, 5.0f, false, 1.0f);
 		DrawDebugSphere(world, Particles[i].Position, 2.5f, 3, FColor(0, 255, 0));
 		DrawDebugLine(world, Particles[i].Position, Particles[i + 1].Position, FColor(255, 0, 0));
 	}
