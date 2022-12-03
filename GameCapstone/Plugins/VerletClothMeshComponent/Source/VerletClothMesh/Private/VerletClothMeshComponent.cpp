@@ -44,6 +44,8 @@ UVerletClothMeshComponent::UVerletClothMeshComponent(const FObjectInitializer& O
 	CollisionFriction = 0.2f; 
 	ClothForce = FVector(0.0f);
 	ClothGravityScale = 0.1f; 
+	WindDirection = FVector(0.0f, 0.0f, 0.0f);
+	WindScale = 0.0f;
 	bUse_Sleeping = false;
 	bShow_Sleeping = false;
 	Sleep_DeltaThreshold = 0.025f; 
@@ -367,18 +369,21 @@ void UVerletClothMeshComponent::Integrate(float i_St)
 
 	const float SubstepTimeSqr = i_St * i_St;
 	const FVector Gravity = FVector(0, 0, GetWorld()->GetGravityZ()) * ClothGravityScale;
+	const FVector Windy = WindDirection * WindScale;
 
 	for (int32 pt = 0; pt < particleCount; pt++)
 	{
 		FVerletClothParticle& Particle = Particles[pt];
 
 		// Cloth Accel x''(t) = f/m (+ g) 
-		FVector Accel = Gravity + ((Particle.Force + ClothForce) / ParticleMass); 
+		FVector Accel = Gravity + Windy + ((Particle.Force + ClothForce) / ParticleMass);
 
 		// x(n+1) = 2x(n) - x(n-1) + a(x) * dt^2
 		// Integrate x''(n) to x(n+1) = x(n) + (x(n) - x(n-1)) + (a(x) * dt^2)
 		FVector NewPosition = Particle.Position + (Particle.Position - Particle.PrevPosition) + (Accel * SubstepTimeSqr);
-		Particle.PrevPosition = Particle.Position; Particle.Position = NewPosition;
+		Particle.PrevPosition = Particle.Position; 
+		if (Particle.Col == FColor(255, 255, 255))
+			Particle.Position = NewPosition;
 	}
 }
 
@@ -401,30 +406,33 @@ void UVerletClothMeshComponent::ClothCollisionWorld()
 		{
 			FVerletClothParticle &Particle = Particles[pt];
 			//if (bPinTop && Particle.state == 0) continue; // Pinned Pt. 
-			FHitResult Result;
-			bool bHit = World->SweepSingleByChannel(Result, Particle.PrevPosition, Particle.Position, FQuat::Identity, TraceChannel, FCollisionShape::MakeSphere(ParticleRadius), Params, ResponseParams);
-			if (bHit)
+			if (Particle.Col == FColor(255, 255, 255))
 			{
-				if (Result.bStartPenetrating)
+				FHitResult Result;
+				bool bHit = World->SweepSingleByChannel(Result, Particle.PrevPosition, Particle.Position, FQuat::Identity, TraceChannel, FCollisionShape::MakeSphere(ParticleRadius), Params, ResponseParams);
+				if (bHit)
 				{
-					Particle.Position += (Result.Normal * Result.PenetrationDepth);
-					world_collided = true;
-				}
-				else
-				{
-					Particle.Position = Result.Location;
-				}
+					if (Result.bStartPenetrating)
+					{
+						Particle.Position += (Result.Normal * Result.PenetrationDepth);
+						world_collided = true;
+					}
+					else
+					{
+						Particle.Position = Result.Location;
+					}
 
-				// Zero out any positive restitution velocity.
-				FVector Delta = Particle.Position - Particle.PrevPosition;
-				float NormalDelta = Delta | Result.Normal;
-				FVector PlaneDelta = Delta - (NormalDelta * Result.Normal);
-				Particle.PrevPosition += (NormalDelta * Result.Normal);
+					// Zero out any positive restitution velocity.
+					FVector Delta = Particle.Position - Particle.PrevPosition;
+					float NormalDelta = Delta | Result.Normal;
+					FVector PlaneDelta = Delta - (NormalDelta * Result.Normal);
+					Particle.PrevPosition += (NormalDelta * Result.Normal);
 
-				if (CollisionFriction > 1e-04)
-				{
-					FVector ScaledPlaneDelta = PlaneDelta * CollisionFriction;
-					Particle.PrevPosition += ScaledPlaneDelta;
+					if (CollisionFriction > 1e-04)
+					{
+						FVector ScaledPlaneDelta = PlaneDelta * CollisionFriction;
+						Particle.PrevPosition += ScaledPlaneDelta;
+					}
 				}
 			}
 		}
@@ -489,8 +497,8 @@ void UVerletClothMeshComponent::SolveDistanceConstraint(FVerletClothParticle &Pa
 	float ErrorFactor = (CurrentDistance - RestLength) / CurrentDistance;
 
 	// Project Pairs to Minimize Delta (If active state)
-	if (ParticleA.state == 1) ParticleA.Position += ErrorFactor * StiffnessCoeff * Delta;
-	if (ParticleB.state == 1) ParticleB.Position -= ErrorFactor * StiffnessCoeff * Delta;
+	if (ParticleA.state == 1 && ParticleA.Col == FColor(255, 255, 255)) ParticleA.Position += ErrorFactor * StiffnessCoeff * Delta;
+	if (ParticleB.state == 1 && ParticleB.Col == FColor(255, 255, 255)) ParticleB.Position -= ErrorFactor * StiffnessCoeff * Delta;
 }
 
 // Solve Pre-Build Constraints on the Cloth Particles for k number of iterations.

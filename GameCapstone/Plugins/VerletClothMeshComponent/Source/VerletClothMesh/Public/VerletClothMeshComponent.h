@@ -101,6 +101,12 @@ public:
 		float ClothGravityScale;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
+		FVector WindDirection;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
+		float WindScale;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
 		bool bUse_Sleeping;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation", meta = (EditCondition = "bUse_Sleeping"))
