@@ -365,13 +365,15 @@ public:
 	// -- Mass Spring
 	// Sets default values for this component's properties		
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Cloth Simulation")
-		bool bDoSimulate = true;
+		bool bDoSimulate = false;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Simulation", meta = (ClampMin = "0.005", UIMin = "0.005", UIMax = "0.1"))
 		float SubstepTime;
 
 	UMassSpringComponent(const FObjectInitializer& ObjectInitializer);
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
 		void InitCloth();
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Cloth Simulation")
+		void UpdateOnceCloth();
 
 	static const int m_iter = 5; // iterations per time step | 10
 	float At = 0.0f, Dt, St;

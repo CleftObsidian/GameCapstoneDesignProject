@@ -541,7 +541,7 @@ void UMassSpringComponent::StaticToProcedural()
 		UE_LOG(LogTemp, Error, TEXT("Mesh Founded"));
 	}
 	FStaticMeshLODResources* lod0 = *(sm->RenderData->LODResources.GetData());
-
+	
 	m_smData.vb = &(lod0->VertexBuffers.PositionVertexBuffer); // Position Vertex Buffer (Position)
 	m_smData.smvb = &(lod0->VertexBuffers.StaticMeshVertexBuffer); // Static Mesh Buffer (Static Mesh)
 	m_smData.cvb = &(lod0->VertexBuffers.ColorVertexBuffer); // Color Vertex Buffer (Color)
@@ -574,6 +574,8 @@ void UMassSpringComponent::StaticToProcedural()
 	for (int32 i = 0; i < m_smData.vert_count; ++i)
 	{
 		m_smData.Pos[i] = m_smData.vb->VertexPosition(i); // Pass Verts Without Component Location Offset initally.
+		UE_LOG(LogClass, Log, TEXT("Index(%d) : (%s)"), i, *m_smData.vb->VertexPosition(i).ToString());
+
 		m_smData.Normal[i] = m_smData.smvb->VertexTangentZ(i);
 		m_smData.Tang[i] = FProcMeshTangent(FVector(m_smData.smvb->VertexTangentX(i).X, m_smData.smvb->VertexTangentX(i).Y, m_smData.smvb->VertexTangentX(i).Z), false);
 		m_smData.has_col == true ? m_smData.Col[i] = m_smData.cvb->VertexColor(i) : m_smData.Col[i] = FColor(255, 255, 255);
@@ -585,7 +587,6 @@ void UMassSpringComponent::StaticToProcedural()
 		Particles[i].PrevPosition = vertPtPos;
 		Particles[i].ID = i;
 		lod0->bHasColorVertexData == true ? Particles[i].Col = m_smData.cvb->VertexColor(i) : Particles[i].Col = FColor(255, 255, 255);
-
 
 	}
 
@@ -669,13 +670,13 @@ void UMassSpringComponent::InitCloth()
 	// InitCloth
 //static const int n = Cloth->GetVertexNum() + 1; // must be odd, n * n = n_vertices | 61
 	static const int n = 7; // must be odd, n * n = n_vertices | 61
-	static const float w = 2.0f; // width | 2.0f
+	static const float w = 400.0f; // width | 2.0f
 	static const float h = 0.008f; // time step, smaller for better results | 0.008f = 0.016f/2
 	static const float r = w / (n - 1) * 1.05f; // spring rest legnth
 	static const float k = 1.0f; // spring stiffness | 1.0f;
 	static const float m = 0.25f / (n * n); // point mass | 0.25f
 	static const float a = 0.993f; // damping, close to 1.0 | 0.993f
-	static const float g = 0 * m; // gravitational force | 9.8f
+	static const float g = 9.8f * m; // gravitational force | 9.8f
 
 	// generate mesh -- origin code
 	// MeshBuilder meshBuilder;
@@ -768,7 +769,7 @@ void UMassSpringComponent::AnimateCloth(int value)
 
 	// fix points
 	CgSatisfyVisitor visitor;
-	visitor.satisfy(m_cgRootNode.ToSharedRef().Get()); //?
+	visitor.satisfy(m_cgRootNode.ToSharedRef().Get());
 
 	GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Yellow, FString::Printf(TEXT("AnimateCloth")));
 
@@ -789,6 +790,7 @@ void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 
 	if (bDoSimulate)
 	{
+
 		At += Dt;
 		while (At > St)
 		{
@@ -796,14 +798,30 @@ void UMassSpringComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			SetParticle(current_state);
 			At -= St;
 		}
-		
-		TickUpdateCloth();
+
+
+			TickUpdateCloth();
 	}
 
 	UWorld* world = GetWorld();
 	for (int32 i = 0; i < m_smData.vert_count - 1; ++i)
 	{
-		//DrawDebugString(world, Particles[i].Position, FString::Printf(TEXT("%d"), i), this->GetAttachmentRootActor() ,FColor::Magenta, 5.0f, false, 1.0f);
+		DrawDebugString(world, Particles[i].Position, FString::Printf(TEXT("%d"), i), this->GetAttachmentRootActor() ,FColor::Magenta, 1.0f, true, 1.0f);
+		DrawDebugSphere(world, Particles[i].Position, 2.5f, 3, FColor(0, 255, 0));
+		DrawDebugLine(world, Particles[i].Position, Particles[i + 1].Position, FColor(255, 0, 0));
+	}
+}
+
+void UMassSpringComponent::UpdateOnceCloth()
+{
+	AnimateCloth(0);
+	SetParticle(current_state);
+	TickUpdateCloth();
+
+	UWorld* world = GetWorld();
+	for (int32 i = 0; i < m_smData.vert_count - 1; ++i)
+	{
+		DrawDebugString(world, Particles[i].Position, FString::Printf(TEXT("%d"), i), this->GetAttachmentRootActor(), FColor::Magenta, 5.0f, false, 1.0f);
 		DrawDebugSphere(world, Particles[i].Position, 2.5f, 3, FColor(0, 255, 0));
 		DrawDebugLine(world, Particles[i].Position, Particles[i + 1].Position, FColor(255, 0, 0));
 	}
