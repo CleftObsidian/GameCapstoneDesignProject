@@ -6,6 +6,7 @@
 #include "HashGrid.h"
 
 // UE4 Headers
+#include <string>
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
 #include "Math/RandomStream.h"
@@ -198,8 +199,11 @@ void UVerletClothMeshComponent::BuildClothState()
 	for (int32 i = 0; i < smData.ind_count; ++i) smData.Ind[i] = static_cast<int32>(smData.ib->GetIndex(i));
 
 	// Build Cloth Mesh Section
-	CreateMeshSection(0, smData.Pos, smData.Ind, smData.Normal, smData.UV, smData.Col, smData.Tang, false);
-	bShowStaticMesh = false; sm->SetVisibility(bShowStaticMesh);
+	CreateMeshSection(1, smData.Pos, smData.Ind, smData.Normal, smData.UV, smData.Col, smData.Tang, false);
+	SetMaterial(1, sm->GetMaterial(0));
+	
+	bShowStaticMesh = false; 
+	sm->SetVisibility(bShowStaticMesh);
 	clothStateExists = true;
 
 	// Get Volume Sample Pts, and Calc Orginal Volume.
@@ -348,7 +352,8 @@ void UVerletClothMeshComponent::TickUpdateCloth()
 		{
 			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
 		}
-		UpdateMeshSection(0, UpdtPos, UpdtNorm, smData.UV, smData.Col, UpdtTang); // No Colour, Use SM Colour. 
+		UpdateMeshSection(1, UpdtPos, UpdtNorm, smData.UV, smData.Col, UpdtTang); // No Colour, Use SM Colour. 
+		
 	}
 	else if (smData.has_col)
 	{
@@ -357,7 +362,8 @@ void UVerletClothMeshComponent::TickUpdateCloth()
 			UpdtPos[i] = Particles[i].Position - GetComponentLocation(); // Subtract Comp Translation Off as is added to ProcMesh Verts internally. 
 			UpdtCol[i] = Particles[i].Col;
 		}
-		UpdateMeshSection(0, UpdtPos, UpdtNorm, smData.UV, UpdtCol, UpdtTang); // Use Particle Colour --> Vertex Colour. 
+		UpdateMeshSection(1, UpdtPos, UpdtNorm, smData.UV, UpdtCol, UpdtTang); // Use Particle Colour --> Vertex Colour. 
+
 	}
 }
 
